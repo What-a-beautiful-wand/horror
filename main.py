@@ -2,6 +2,7 @@ import os
 import sys
 
 from station import Station
+from monitor import draw_monitor
 
 
 def clear_screen():
@@ -12,62 +13,25 @@ def clear_screen():
             print("\033[2J\033[H", end="", flush=True)
 
 
-def draw_desk(station):
-    clock = f"{station.seconds // 60:02}:{station.seconds % 60:02}"
-    pump = "ВКЛ" if station.pump_on else "ВЫКЛ"
-    screen = [
-        f"ПОСТ 04                  {clock}",
-        "------------------------------",
-        " [1] ГАЛЕРЕЯ    [2] НАСОСНАЯ",
-        "",
-        f" НАСОС {pump:<4}     ВОДА {station.rooms['02'].water}/4",
-    ]
-    print("       __             ______________________________________")
-    print("      /  \\           /  .--------------------------------.  \\")
-    print("     /____\\        |   |                                |   |")
-    lamp = ["       ||", "       ||", "       ||", "       ||", "     __||__"]
-    for arm, line in zip(lamp, screen):
-        print(f"{arm:<19}|   | {line:<30} |   |")
-    print("    /______\\       |   '--------------------------------'   |")
-    print("                   |    :: :: ::               [o]   ( O )  |")
-    print("   ________________'---------------------------------------'__")
-    print("  /      .----.                  |______|                     /|")
-    print(" /       |    |)     .--------------------------------.      / |")
-    print("/        '----'     / [][][][][][][][][][][][][][][] /      /  |")
-    print("-------------------/__________[________]___________/-------'   |")
-    print("|   |                                                  |   |")
-
-
-def draw_camera(station, camera, forecast):
-    view = station.forecast() if forecast else station
-    room = view.rooms[camera]
-    mode = "ПРОГНОЗ +60 с" if forecast else "ЭФИР"
-    print(f"CAM {camera} / {room.name} / {mode} / {view.seconds // 60:02}:{view.seconds % 60:02}")
-    border = "+" + "-" * len(room.walls[0]) + "+"
-    print(border)
-    for row in room.picture(view.monster.room_id == camera):
-        print("|" + row + "|")
-    print(border)
-    print("Насос:", "работает" if station.pump_on else "выключен")
-
-
 def main():
     station = Station()
     camera = None
     forecast = False
+    message = ""
+    interactive = sys.stdin.isatty() and sys.stdout.isatty()
+    if interactive and os.name == "nt":
+        os.system("")  # Включает ANSI-позиционирование в консоли Windows.
+    clear_screen()
     while True:
-        if camera is None:
-            draw_desk(station)
-        else:
-            draw_camera(station, camera, forecast)
-        print("1/2 — камеры   с — стол   ф — эфир/прогноз")
-        print("н — насос      х — ход (+10 с)   в — выход")
+        draw_monitor(station, camera, forecast, message)
         try:
-            command = input("> ").strip().lower()
+            # Возвращаем курсор в поле ввода над нижней границей экрана.
+            command = input("\033[2A\r\033[4C" if interactive else "").strip().lower()
         except (EOFError, KeyboardInterrupt):
             print()
             break
         clear_screen()
+        message = ""
         if command == "в":
             break
         elif command in ("1", "2"):
@@ -82,7 +46,7 @@ def main():
         elif command == "х":
             station.advance()
         else:
-            print("Неизвестная команда. Выбери клавишу из подсказки.")
+            message = "Неизвестная команда."
 
 
 if __name__ == "__main__":
